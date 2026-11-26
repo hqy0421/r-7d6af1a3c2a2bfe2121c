@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   PulseWatch design tokens.
+
+   An infrastructure tool: near-black surfaces, one cool accent, and three
+   state colours used *only* for state. Nothing else is coloured, so a red dot
+   always means something.
+   ------------------------------------------------------------------------ */
+@theme {
+  --color-canvas: #08090c;
+  --color-surface: #0d0f14;
+  --color-surface-raised: #13161d;
+  --color-border: #1d212b;
+  --color-border-strong: #2a3040;
+
+  --color-ink: #e8ebf2;
+  --color-ink-muted: #949bad;
+  --color-ink-subtle: #626a7d;
+
+  --color-accent: #4b8dff;
+  --color-up: #35c88a;
+  --color-degraded: #e0a33f;
+  --color-down: #ef5a68;
+  --color-paused: #6b7385;
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(75, 141, 255, 0.28);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 999px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* The faint grid behind the status page header. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* The live indicator: a slow, quiet pulse — not a blinking alarm. */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 0.7; }
+    70% { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+  .pulse-ring {
+    animation: pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
+}
