@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     max_check_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
     default_failure_threshold: int = Field(default=3, ge=1, le=10)
     default_degraded_ms: int = Field(default=1500, ge=1, le=60_000)
+    default_availability_target: float = Field(default=99.9, ge=0, le=100)
+    default_budget_window: str = Field(default="30d")
     check_retention_days: int = Field(default=30, ge=0)
 
     # --- Outbound safety ---------------------------------------------------

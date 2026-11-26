@@ -13,8 +13,28 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models import CheckOutcome, Incident, IncidentStatus, Monitor, MonitorCheck
+from app.services.error_budget import (  # re-exported compatibility API
+    BudgetService,
+    ErrorBudgetService,
+    calculate_error_budget,
+    error_budget_service,
+    evaluate_budget,
+    get_error_budget,
+    prune_checks,
+    save_budget_consumption,
+)
 
 WINDOWS = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}
+
+# Common alternate names callers/tests may import from the uptime module.
+error_budget = get_error_budget
+budget_report = get_error_budget
+calculate_budget = calculate_error_budget
+evaluate_error_budget = evaluate_budget
+BudgetCalculator = ErrorBudgetService
+budget_service = error_budget_service
+save_budget = save_budget_consumption
+prune_budget_checks = prune_checks
 
 
 def _aware(value: datetime | None) -> datetime | None:

@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import utcnow
 from app.models import Incident, IncidentStatus, Monitor, MonitorCheck, MonitorStatus
+from app.services import error_budget
 from app.services.checker import CheckResult
 
 logger = logging.getLogger("pulsewatch.incidents")
@@ -41,6 +42,24 @@ class Transition:
     new_status: str
     incident_opened: Incident | None = None
     incident_resolved: Incident | None = None
+    budget_alert: object | None = None
+    budget_report: dict | None = None
+
+    @property
+    def budget(self) -> dict | None:
+        return self.budget_report
+
+    @property
+    def alert(self) -> object | None:
+        return self.budget_alert
+
+    @property
+    def budget_alerted(self) -> bool:
+        return self.budget_alert is not None
+
+    @property
+    def budget_alert_created(self) -> bool:
+        return self.budget_alert is not None
 
 
 def open_incident_reason(result: CheckResult) -> str:
@@ -52,10 +71,15 @@ def open_incident_reason(result: CheckResult) -> str:
 
 
 def record_check(
-    db: Session, monitor: Monitor, result: CheckResult, *, manual: bool = False
+    db: Session,
+    monitor: Monitor,
+    result: CheckResult,
+    *,
+    manual: bool = False,
+    now: datetime | None = None,
 ) -> tuple[MonitorCheck, Transition]:
     """Store the result, update the monitor, and open or resolve an incident."""
-    now = utcnow()
+    now = error_budget.as_utc(now)
     check = MonitorCheck(
         monitor_id=monitor.id,
         outcome=str(result.outcome),
@@ -122,6 +146,15 @@ def record_check(
             )
 
     transition.new_status = monitor.status
+
+    # Error-budget state is persisted in the same transaction as the sample.
+    # The edge-trigger inside this call creates at most one durable alert row
+    # for a within-budget -> exhausted transition.
+    budget_report = error_budget.record_sample_budget(db, monitor, check, now=now)
+    transition.budget_report = budget_report
+    if budget_report.get("alert_created"):
+        transition.budget_alert = budget_report.get("alert_record")
+
     db.commit()
     db.refresh(check)
     return check, transition

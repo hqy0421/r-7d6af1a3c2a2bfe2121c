@@ -3,31 +3,11 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
-
-from sqlalchemy import delete
-
 from app.core.config import settings
-from app.db.session import SessionLocal, init_db
-from app.models import MonitorCheck
+from app.db.session import init_db
+from app.services.error_budget import prune_checks
 
 COMMANDS = ("init-db", "prune-checks")
-
-
-def prune_checks(days: int | None = None) -> int:
-    """Delete checks older than the retention window.
-
-    A command rather than a background job: on this scale a cron entry is
-    honest, and a scheduler would be one more moving part to get wrong.
-    """
-    retention = settings.check_retention_days if days is None else days
-    if retention <= 0:
-        return 0
-    cutoff = datetime.now(timezone.utc) - timedelta(days=retention)
-    with SessionLocal() as db:
-        result = db.execute(delete(MonitorCheck).where(MonitorCheck.checked_at < cutoff))
-        db.commit()
-        return result.rowcount or 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,8 +21,39 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Schema created in {settings.database_url}")
         return 0
 
-    deleted = prune_checks()
-    print(f"Deleted {deleted} checks older than {settings.check_retention_days} days")
+    days: int | None = None
+    positional: list[str] = []
+    index = 1
+    while index < len(args):
+        option = args[index]
+        if option in {"--days", "-d", "--retention-days", "--older-than-days"}:
+            if index + 1 >= len(args):
+                print("usage: python -m app.cli prune-checks [--days N]")
+                return 1
+            days = int(args[index + 1])
+            index += 2
+            continue
+        if "=" in option and option.split("=", 1)[0] in {
+            "--days",
+            "--retention-days",
+            "--older-than-days",
+        }:
+            days = int(option.split("=", 1)[1])
+            index += 1
+            continue
+        if not option.startswith("-"):
+            positional.append(option)
+        index += 1
+
+    if days is None and positional:
+        days = int(positional[0])
+
+    result = prune_checks(days)
+    retention = settings.check_retention_days if days is None else days
+    print(
+        f"Deleted {int(result)} checks older than {retention} days "
+        f"({getattr(result, 'records_created', 0)} budget rollups)"
+    )
     return 0
 
 

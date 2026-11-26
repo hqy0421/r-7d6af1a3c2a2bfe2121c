@@ -73,8 +73,8 @@ app.add_middleware(
 install_error_handlers(app)
 
 for router in (
-    system.router, auth.router, monitors.router, incidents.router,
-    channels.router, status_pages.router, demo.router,
+    system.router, auth.router, monitors.router, monitors.budget_flat_router,
+    incidents.router, channels.router, status_pages.router, demo.router,
 ):
     app.include_router(router)
 

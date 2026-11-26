@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.base import utcnow
 from app.db.session import SessionLocal
-from app.models import Incident, Monitor, MonitorStatus
+from app.models import ErrorBudgetAlert, Incident, Monitor, MonitorStatus
 from app.services import incidents as incident_engine
 from app.services import notifications
 from app.services.checker import CheckResult, CheckTarget, run_check
@@ -193,9 +193,34 @@ class MonitorScheduler:
             if monitor is None:  # deleted mid-flight
                 return None
             _, transition = incident_engine.record_check(db, monitor, result)
-            return transition if (transition.incident_opened or transition.incident_resolved) else None
+            return transition if (
+                transition.incident_opened
+                or transition.incident_resolved
+                or transition.budget_alert is not None
+            ) else None
 
     async def _alert(self, transition) -> None:  # noqa: ANN001
+        if transition.budget_alert is not None:
+            await self._alert_budget(transition)
+        if transition.incident_opened is not None or transition.incident_resolved is not None:
+            await self._alert_incident(transition)
+
+    async def _alert_budget(self, transition) -> None:  # noqa: ANN001
+        budget_alert_id = transition.budget_alert.id
+        with SessionLocal() as db:
+            alert_row = db.get(ErrorBudgetAlert, budget_alert_id)
+            monitor = db.get(Monitor, transition.monitor_id)
+            if alert_row is None or monitor is None:
+                return
+            alert = notifications.build_budget_alert(
+                monitor, transition.budget_report, alert_row
+            )
+            results = await notifications.dispatch(db, monitor.user_id, alert)
+            alert_row.dispatched_at = utcnow()
+            db.commit()
+        logger.info("budget alert for monitor %s: %s", transition.monitor_id, results)
+
+    async def _alert_incident(self, transition) -> None:  # noqa: ANN001
         incident = transition.incident_opened or transition.incident_resolved
         recovered = transition.incident_resolved is not None
         with SessionLocal() as db:

@@ -84,6 +84,41 @@ def build_alert(monitor: Monitor, incident: Incident, *, recovered: bool) -> Ale
     )
 
 
+def build_budget_alert(monitor: Monitor, report: dict[str, Any] | None = None, alert: Any = None) -> Alert:
+    """Render the one-shot error-budget exhaustion alert."""
+
+    report = report or {}
+    failed = report.get("failed_checks", getattr(alert, "failed_checks", 0))
+    total = report.get("total_checks", getattr(alert, "total_checks", 0))
+    target = report.get("availability_target", getattr(alert, "availability_target", 99.9))
+    allowed = report.get("allowed_failures", getattr(alert, "allowed_failures", 0))
+    window = report.get("window") or getattr(alert, "window", getattr(monitor, "budget_window", "30d"))
+    title = f"🚫 {monitor.name} error budget exhausted"
+    body = (
+        f"**Monitor:** {monitor.name}\n"
+        f"**Window:** {window}\n"
+        f"**Availability target:** {target:g}%\n"
+        f"**Failed eligible checks:** {failed}/{total}\n"
+        f"**Allowed failures:** {allowed:g}\n"
+        f"**State:** over budget"
+    )
+    return Alert(
+        kind="budget_exhausted",
+        title=title,
+        body=body,
+        payload={
+            "event": "monitor.error_budget_exhausted",
+            "kind": "error_budget_exhausted",
+            "monitor": {"id": monitor.id, "name": monitor.name, "url": monitor.url},
+            "window": window,
+            "availability_target": target,
+            "failed_checks": failed,
+            "total_checks": total,
+            "allowed_failures": allowed,
+        },
+    )
+
+
 async def dispatch(db: Session, user_id: int, alert: Alert) -> list[str]:
     """Send the alert to every enabled channel. Returns human-readable results."""
     channels = db.execute(
